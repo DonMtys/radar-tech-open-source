@@ -1,0 +1,60 @@
+name: Radar Open Source & Tech 24/7
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *' # Executa automaticamente a cada hora
+
+jobs:
+  run-radar-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Código do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar ambiente Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar Dependências
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Restaurar Banco de Dados SQLite do Cache / Artifact (Sem Git Commit)
+        uses: actions/cache/restore@v4
+        id: cache-db
+        with:
+          path: radar_renda.db
+          key: sqlite-db-production-v1
+
+      - name: Executar Testes de Integração e Desduplicação
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -m unittest discover -s tests
+
+      - name: Executar Pipeline Automático (Máx 12 Publicações/Dia)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAUSE_RADAR: ${{ secrets.PAUSE_RADAR }}
+        run: |
+          python -m src.cli --run-once-telegram
+
+      - name: Salvar Estado do SQLite no Cache do GitHub Actions
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: radar_renda.db
+          key: sqlite-db-production-v1-${{ github.run_id }}
+
+      - name: Upload de Backup do SQLite como Artifact Seguro
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sqlite-database-backup
+          path: radar_renda.db
+          retention-days: 90
