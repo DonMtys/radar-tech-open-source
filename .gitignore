@@ -36,6 +36,9 @@ venv.bak/
 *.sqlite3
 data/
 *.log
+/RadarTechBot.exe
+/RadarTechBot.spec
+/build-news/
 
 # IDEs
 .vscode/

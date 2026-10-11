@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import argparse
+import time
 from typing import Optional
 
 from database.db import init_db, get_connection
@@ -186,6 +187,53 @@ def run_cli_run_once_telegram(modo_real: bool = True):
     print(f" Ignoradas por duplicidade:           {res['ignorados_duplicidade']}", flush=True)
     print("-" * 65 + "\n", flush=True)
 
+def run_cli_loop_telegram(modo_real: bool = True, interval_minutes: int = 30):
+    """Mantém o pipeline local em execução, repetindo-o em intervalos definidos."""
+    interval_minutes = max(1, interval_minutes)
+    print(f"[+] Bot local iniciado; nova rodada a cada {interval_minutes} minuto(s).", flush=True)
+    print("[+] Pressione Ctrl+C para parar.", flush=True)
+    while True:
+        try:
+            run_cli_run_once_telegram(modo_real=modo_real)
+        except KeyboardInterrupt:
+            print("\n[+] Bot local encerrado.", flush=True)
+            return
+        except Exception as exc:
+            print(f"[!] Erro nesta rodada; tentando novamente no próximo intervalo: {exc}", flush=True)
+        time.sleep(interval_minutes * 60)
+
+def run_cli_news_channel(preview: bool = False):
+    """Executa uma rodada do canal de notícias, ou mostra a próxima publicação."""
+    from src.news_channel import run_news_round
+
+    result = run_news_round(preview=preview)
+    print(f"[CANAL TECH] Estado: {result['status']}", flush=True)
+    if preview:
+        if result.get("text"):
+            print(safe_str(result["text"]), flush=True)
+    elif result.get("sent"):
+        print(f"[CANAL TECH] Publicado: {result['url']} (message_id={result['message_id']})", flush=True)
+    elif result.get("error"):
+        print(f"[CANAL TECH] Erro de envio: {result['error']}", flush=True)
+    for error in result.get("errors", []):
+        print(f"[CANAL TECH] Fonte indisponível: {error}", flush=True)
+    return result
+
+def run_cli_news_loop(interval_minutes: int = 30):
+    """Executa o canal de notícias uma vez por intervalo, sem publicar em lote."""
+    interval_minutes = max(1, interval_minutes)
+    print(f"[CANAL TECH] Iniciado; uma rodada a cada {interval_minutes} minuto(s).", flush=True)
+    while True:
+        try:
+            run_cli_news_channel()
+            time.sleep(interval_minutes * 60)
+        except KeyboardInterrupt:
+            print("[CANAL TECH] Encerrado.", flush=True)
+            return
+        except Exception as exc:
+            print(f"[CANAL TECH] Erro nesta rodada: {exc}", flush=True)
+            time.sleep(interval_minutes * 60)
+
 def run_cli_demo(modo_real: bool = False, action: str = "demo", approve_id: Optional[int] = None):
     if action == "check_telegram":
         run_cli_telegram_check()
@@ -344,6 +392,12 @@ if __name__ == "__main__":
     parser.add_argument("--telegram-send-test", action="store_true", help="Envia mensagem de teste única autorizada para o chat do Telegram")
     parser.add_argument("--publish-telegram", action="store_true", help="Envia publicações aprovadas para o Telegram (requer credenciais)")
     parser.add_argument("--run-once-telegram", action="store_true", help="Executa uma rodada completa do pipeline automático e publica oportunidades A/B válidas no Telegram")
+    parser.add_argument("--loop-telegram", action="store_true", help="Mantém o pipeline local rodando em intervalos regulares")
+    parser.add_argument("--interval-minutes", type=int, default=30, help="Intervalo do --loop-telegram em minutos (padrão: 30)")
+    parser.add_argument("--news-preview", action="store_true", help="Mostra a próxima publicação de tecnologia sem enviar")
+    parser.add_argument("--news-once", action="store_true", help="Publica no máximo um projeto ou notícia de tecnologia")
+    parser.add_argument("--news-loop", action="store_true", help="Executa o canal de tecnologia repetidamente")
+    parser.add_argument("--news-interval-minutes", type=int, default=30, help="Intervalo do --news-loop em minutos (padrão: 30)")
     parser.add_argument("--telegram-pipeline-test", action="store_true", help="Executa um envio forçado de teste do pipeline com 1 oportunidade Classe B formatada")
     args = parser.parse_args()
 
@@ -355,6 +409,14 @@ if __name__ == "__main__":
         run_cli_demo(modo_real=args.real, action="telegram_pipeline_test")
     elif args.run_once_telegram:
         run_cli_demo(modo_real=args.real, action="run_once_telegram")
+    elif args.loop_telegram:
+        run_cli_loop_telegram(modo_real=args.real, interval_minutes=args.interval_minutes)
+    elif args.news_preview:
+        run_cli_news_channel(preview=True)
+    elif args.news_once:
+        run_cli_news_channel()
+    elif args.news_loop:
+        run_cli_news_loop(interval_minutes=args.news_interval_minutes)
     elif args.preview_telegram:
         run_cli_demo(modo_real=args.real, action="preview_telegram")
     elif args.approve_telegram is not None:

@@ -28,6 +28,8 @@ jobs:
         with:
           path: radar_renda.db
           key: sqlite-db-production-v1
+          restore-keys: |
+            sqlite-db-production-v1-
 
       - name: Executar Testes de Integração e Desduplicação
         env:
