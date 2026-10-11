@@ -237,19 +237,39 @@ function sendTelegram_(text, token, chatId) {
 
 function formatPost_(item) {
   if (item.kind === 'github') {
-    const description = item.description || 'O autor ainda não publicou uma descrição.';
-    return '📡 RADAR TECH OPEN SOURCE\n🚀 PROJETO NOVO NO GITHUB\n\n' + item.title + '\n\n' +
-      'Descrição do projeto: ' + description + '\n\n' +
+    let descriptionPt = item.description || 'O autor ainda não publicou uma descrição detalhada.';
+    if (item.description) {
+      try {
+        descriptionPt = LanguageApp.translate(item.description, '', 'pt');
+      } catch (err) {
+        console.warn('Falha na tradução automática: ' + err.message);
+      }
+    }
+
+    return '📡 RADAR TECH OPEN SOURCE\n🚀 PROJETO NOVO NO GITHUB\n\n' +
+      '📦 ' + item.title + '\n\n' +
+      '💡 O que é e o que é capaz de fazer:\n' + descriptionPt + '\n\n' +
       '⭐ ' + item.stars + ' estrelas • Linguagem: ' + item.language + '\n' +
-      'Criado em: ' + item.published + '\n\n' +
-      'Código e detalhes: ' + item.url;
+      '📅 Criado em: ' + item.published + '\n\n' +
+      '🔗 Código e detalhes: ' + item.url;
   }
 
-  const discussion = item.discussion ? '\nDiscussão no Hacker News: ' + item.discussion : '';
-  return '📡 RADAR TECH OPEN SOURCE\n📰 NOTÍCIA DE TECNOLOGIA\n\n' + item.title + '\n\n' +
-    'Título original • Fonte: ' + item.source + '\n' +
-    'Leia na fonte: ' + item.url + discussion;
+  let titlePt = item.title;
+  try {
+    titlePt = LanguageApp.translate(item.title, '', 'pt');
+  } catch (err) {
+    console.warn('Falha na tradução de notícia: ' + err.message);
+  }
+
+  const discussion = item.discussion ? '\n💬 Discussão no Hacker News: ' + item.discussion : '';
+  const original = titlePt !== item.title ? '\n📌 Título original: ' + item.title : '';
+  return '📡 RADAR TECH OPEN SOURCE\n📰 NOTÍCIA DE TECNOLOGIA\n\n' +
+    titlePt + '\n' +
+    original + '\n' +
+    '🌐 Fonte: ' + item.source + '\n\n' +
+    '🔗 Leia na fonte: ' + item.url + discussion;
 }
+
 
 function getSecrets_() {
   const properties = PropertiesService.getScriptProperties();
